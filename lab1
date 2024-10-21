@@ -1,0 +1,79 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdbool.h>
+
+#define ALPHABET_SIZE 26
+
+// Функція для обчислення нового символа після зсуву
+char shift(char c, int shift_value) {
+    return 'A' + (c - 'A' + shift_value) % ALPHABET_SIZE;
+}
+
+// Функція для знаходження символа після проходження через ротор
+char rotor(char input, const char* rotor_map) {
+    return rotor_map[input - 'A'];
+}
+
+// Функція для знаходження індексу символа в роторі для декодування
+char reverse_rotor(char input, const char* rotor_map) {
+    for (int i = 0; i < ALPHABET_SIZE; i++) {
+        if (rotor_map[i] == input)
+            return 'A' + i;
+    }
+    return input;  // у випадку, якщо не знайдено, повертаємо вхідний символ
+}
+
+int main() {
+    char mode[10];
+    int start_shift;
+    char rotor1[ALPHABET_SIZE + 1], rotor2[ALPHABET_SIZE + 1], rotor3[ALPHABET_SIZE + 1];
+    char message[50];
+
+    // Читання вхідних даних
+    scanf("%s", mode);
+    scanf("%d", &start_shift);
+    scanf("%s", rotor1);
+    scanf("%s", rotor2);
+    scanf("%s", rotor3);
+    scanf("%s", message);
+
+    int message_length = strlen(message);
+
+    if (strcmp(mode, "ENCODE") == 0) {
+        // Шифрування
+        for (int i = 0; i < message_length; i++) {
+            // Застосування зсуву Цезаря
+            message[i] = shift(message[i], start_shift + i);
+            
+            // Проходження через перший ротор
+            message[i] = rotor(message[i], rotor1);
+            
+            // Проходження через другий ротор
+            message[i] = rotor(message[i], rotor2);
+            
+            // Проходження через третій ротор
+            message[i] = rotor(message[i], rotor3);
+        }
+    } else if (strcmp(mode, "DECODE") == 0) {
+        // Декодування
+        for (int i = 0; i < message_length; i++) {
+            // Проходження через третій ротор (в зворотному напрямку)
+            message[i] = reverse_rotor(message[i], rotor3);
+            
+            // Проходження через другий ротор (в зворотному напрямку)
+            message[i] = reverse_rotor(message[i], rotor2);
+            
+            // Проходження через перший ротор (в зворотному напрямку)
+            message[i] = reverse_rotor(message[i], rotor1);
+            
+            // Відновлення зсуву Цезаря
+            message[i] = shift(message[i], ALPHABET_SIZE - (start_shift + i) % ALPHABET_SIZE);
+        }
+    }
+
+    // Виведення результату
+    printf("%s\n", message);
+
+    return 0;
+}
