@@ -1,0 +1,39 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdbool.h>
+
+/**
+ * Decrypts the clear text message based on intercepted XORed messages.
+ */
+int main()
+{
+    char message_1[501];
+    scanf("%500s", message_1); fgetc(stdin);
+    char message_2[501];
+    scanf("%500s", message_2); fgetc(stdin);
+    char message_3[501];
+    scanf("%500s", message_3);
+
+    // Determine the length of the messages in bytes (half the hex string length)
+    int length = strlen(message_1) / 2;
+    char result[length + 1]; // To store the clear text message
+
+    for (int i = 0; i < length; i++) {
+        // Convert each byte from hexadecimal to decimal
+        unsigned int byte1, byte2, byte3;
+        sscanf(&message_1[i * 2], "%2x", &byte1);
+        sscanf(&message_2[i * 2], "%2x", &byte2);
+        sscanf(&message_3[i * 2], "%2x", &byte3);
+
+        // XOR the bytes as per the decryption logic
+        result[i] = byte1 ^ byte2 ^ byte3;
+    }
+
+    result[length] = '\0'; // Null-terminate the string
+
+    // Print the clear text message
+    printf("%s\n", result);
+
+    return 0;
+}
