@@ -1,0 +1,36 @@
+def xor_encrypt_decrypt(input_data, key):
+    """
+    Простий алгоритм XOR для шифрування та дешифрування даних.
+    
+    :param input_data: Дані для шифрування/дешифрування
+    :param key: Ключ для XOR
+    :return: Зашифровані/дешифровані дані
+    """
+    output = bytearray()
+    for i in range(len(input_data)):
+        output.append(input_data[i] ^ key[i % len(key)])
+    return bytes(output)
+
+# Приклад використання:
+def main():
+    # Вхідні дані
+    message = "Hello, this is a secret message!"
+    
+    # Конвертуємо повідомлення в байти
+    message_bytes = message.encode('utf-8')
+    
+    # Ключ для шифрування
+    key = b"supersecretkey"
+    
+    print("Original Message:", message)
+    
+    # Шифрування
+    encrypted = xor_encrypt_decrypt(message_bytes, key)
+    print("Encrypted Message:", encrypted)
+    
+    # Дешифрування
+    decrypted = xor_encrypt_decrypt(encrypted, key)
+    print("Decrypted Message:", decrypted.decode('utf-8'))
+
+if __name__ == "__main__":
+    main()
