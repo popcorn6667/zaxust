@@ -1,0 +1,40 @@
+#include <stdio.h>
+#include <string.h>
+#include <openssl/md5.h> // Бібліотека OpenSSL для використання MD5
+
+void md5_hash(const char *str, char *output) {
+    unsigned char digest[MD5_DIGEST_LENGTH];
+    MD5((unsigned char *)str, strlen(str), digest);
+
+    for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
+        sprintf(&output[i * 2], "%02x", digest[i]);
+    }
+}
+
+void crack_md5(const char *hash) {
+    char pin[6];        // П'ятизначний PIN
+    char hashed_pin[33]; // Хешований PIN у вигляді рядка
+
+    for (int i = 0; i <= 99999; i++) {
+        sprintf(pin, "%05d", i); // Генеруємо поточний PIN з 5 цифр
+        md5_hash(pin, hashed_pin);
+
+        if (strcmp(hashed_pin, hash) == 0) {
+            printf("Cracked PIN: %s\n", pin);
+            return;
+        }
+    }
+
+    printf("PIN not found.\n");
+}
+
+int main() {
+    char hash[33];
+
+    printf("Enter MD5 hash: ");
+    scanf("%32s", hash);
+
+    crack_md5(hash);
+
+    return 0;
+}
