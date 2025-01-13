@@ -1,0 +1,79 @@
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+// Допоміжна функція для перетворення символу в його 8-бітне двійкове представлення
+void char_to_binary(unsigned char c, char *output) {
+    for (int i = 7; i >= 0; i--) {
+        output[7 - i] = (c & (1 << i)) ? '1' : '0';
+    }
+    output[8] = '\0';
+}
+
+// Допоміжна функція для потрійного дублювання кожного біта у двійковому рядку
+void triple_bits(const char *binary, char *output) {
+    for (int i = 0; i < 8; i++) {
+        output[i * 3] = binary[i];
+        output[i * 3 + 1] = binary[i];
+        output[i * 3 + 2] = binary[i];
+    }
+    output[24] = '\0';
+}
+
+// Функція кодування тексту у формат Hamming Code
+char *encode(const char *text) {
+    size_t len = strlen(text);
+    char *encoded = (char *)malloc(len * 24 + 1); // Кожен символ перетворюється на 24 біти
+    char binary[9];
+    char tripled[25];
+    encoded[0] = '\0';
+
+    for (size_t i = 0; i < len; i++) {
+        char_to_binary(text[i], binary);
+        triple_bits(binary, tripled);
+        strcat(encoded, tripled);
+    }
+
+    return encoded;
+}
+
+// Допоміжна функція для знаходження найбільш поширеного біта у трійці
+char majority_bit(const char *triplet) {
+    int count1 = (triplet[0] == '1') + (triplet[1] == '1') + (triplet[2] == '1');
+    return (count1 >= 2) ? '1' : '0';
+}
+
+// Функція декодування закодованого тексту і виправлення помилок
+char *decode(const char *encoded) {
+    size_t len = strlen(encoded);
+    char *decoded = (char *)malloc(len / 3 / 8 + 1); // Кожна група з 24 бітів перетворюється на 1 символ
+    char byte[9];
+    byte[8] = '\0';
+
+    for (size_t i = 0, decoded_idx = 0; i < len; i += 24, decoded_idx++) {
+        for (int j = 0; j < 8; j++) {
+            byte[j] = majority_bit(&encoded[i + j * 3]);
+        }
+        decoded[decoded_idx] = (char)strtol(byte, NULL, 2);
+    }
+
+    decoded[len / 24] = '\0';
+    return decoded;
+}
+
+int main() {
+    const char *text = "hey";
+
+    // Кодування тексту
+    char *encoded = encode(text);
+    printf("Encoded: %s\n", encoded);
+
+    // Декодування закодованого тексту
+    char *decoded = decode(encoded);
+    printf("Decoded: %s\n", decoded);
+
+    free(encoded);
+    free(decoded);
+
+    return 0;
+}
