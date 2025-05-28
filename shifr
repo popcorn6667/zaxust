@@ -2,38 +2,42 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Розмір блоку пікселів, який буде використовуватись для перестановки
 #define BLOCK_WIDTH  4
 #define BLOCK_HEIGHT 3
 
+// Структура для представлення одного пікселя (у форматі BGR)
 typedef struct {
     unsigned char b, g, r;
 } Pixel;
 
+// Структури заголовків BMP-файлу, вирівняні по 1 байту
 #pragma pack(push, 1)
 typedef struct {
-    unsigned short type;
-    unsigned int size;
-    unsigned short reserved1;
+    unsigned short type;       // Тип файлу
+    unsigned int size;         // Загальний розмір файлу
+    unsigned short reserved1;  
     unsigned short reserved2;
-    unsigned int offset;
+    unsigned int offset;       // Зсув до піксельних даних
 } BMPHeader;
 
 typedef struct {
-    unsigned int size;
-    int width, height;
-    unsigned short planes;
-    unsigned short bits_per_pixel;
-    unsigned int compression;
-    unsigned int image_size;
-    int x_pixels_per_meter;
-    int y_pixels_per_meter;
-    unsigned int colors_used;
-    unsigned int important_colors;
+    unsigned int size;                // Розмір цієї структури (DIB header)
+    int width, height;                // Ширина і висота зображення
+    unsigned short planes;            // Кількість площин (має бути 1)
+    unsigned short bits_per_pixel;    // Біти на піксель (24 для RGB)
+    unsigned int compression;         // Тип стиснення (0 - немає)
+    unsigned int image_size;          // Розмір піксельних даних
+    int x_pixels_per_meter;           // Горизонтальна роздільна здатність
+    int y_pixels_per_meter;           // Вертикальна роздільна здатність
+    unsigned int colors_used;         // Кількість кольорів у палітрі
+    unsigned int important_colors;    // Важливі кольори
 } DIBHeader;
 #pragma pack(pop)
 
+// Функція для перемішування масиву (алгоритм Фішера-Йєйтса)
 void shuffle(int* arr, int n, unsigned int seed) {
-    srand(seed);
+    srand(seed); // Ініціалізація генератора випадкових чисел
     for (int i = n - 1; i > 0; i--) {
         int j = rand() % (i + 1);
         int tmp = arr[i];
@@ -42,43 +46,47 @@ void shuffle(int* arr, int n, unsigned int seed) {
     }
 }
 
+// Функція для шифрування блоків зображення
 void encrypt_blocks(Pixel* pixels, Pixel* output, int width, int height, unsigned int seed) {
-    int blocks_x = width / BLOCK_WIDTH;
-    int blocks_y = height / BLOCK_HEIGHT;
-    int total_blocks = blocks_x * blocks_y;
+    int blocks_x = width / BLOCK_WIDTH;       // Кількість блоків по горизонталі
+    int blocks_y = height / BLOCK_HEIGHT;     // Кількість блоків по вертикалі
+    int total_blocks = blocks_x * blocks_y;   // Загальна кількість блоків
 
-    int* permutation = malloc(sizeof(int) * total_blocks);
+    int* permutation = malloc(sizeof(int) * total_blocks); // Массив перестановки
     if (!permutation) {
         printf("Memory allocation for permutation failed.\n");
         return;
     }
 
     for (int i = 0; i < total_blocks; i++) permutation[i] = i;
-    shuffle(permutation, total_blocks, seed);
+    shuffle(permutation, total_blocks, seed); // Перемішування блоків
 
+    // Копіювання блоків відповідно до нової перестановки
     for (int i = 0; i < total_blocks; i++) {
-        int src_block = permutation[i];
-        int dst_block = i;
+        int src_block = permutation[i]; // Звідки брати блок
+        int dst_block = i;              // Куди писати блок
 
+        // Визначаємо координати джерела і призначення
         int src_x = (src_block % blocks_x) * BLOCK_WIDTH;
         int src_y = (src_block / blocks_x) * BLOCK_HEIGHT;
         int dst_x = (dst_block % blocks_x) * BLOCK_WIDTH;
         int dst_y = (dst_block / blocks_x) * BLOCK_HEIGHT;
 
+        // Копіювання пікселів блоку
         for (int y = 0; y < BLOCK_HEIGHT; y++) {
             for (int x = 0; x < BLOCK_WIDTH; x++) {
-                int sy = height - 1 - (src_y + y);
-                int dy = height - 1 - (dst_y + y);
+                int sy = height - 1 - (src_y + y); // Індекс у BMP (від дна)
+                int dy = height - 1 - (dst_y + y); // Індекс у BMP (від дна)
                 output[dy * width + (dst_x + x)] = pixels[sy * width + (src_x + x)];
             }
         }
     }
-    free(permutation);
+    free(permutation); // Звільнення пам'яті
 }
 
 int main() {
     printf("Opening input.bmp...\n");
-    FILE* file = fopen("input.bmp", "rb");
+    FILE* file = fopen("input.bmp", "rb"); // Відкриття вхідного BMP-файлу
     if (!file) {
         perror("Can't open input file");
         return 1;
@@ -87,11 +95,13 @@ int main() {
     BMPHeader bmp;
     DIBHeader dib;
 
+    // Зчитування заголовків BMP
     fread(&bmp, sizeof(bmp), 1, file);
     fread(&dib, sizeof(dib), 1, file);
 
     printf("Image: %dx%d, BPP: %d\n", dib.width, dib.height, dib.bits_per_pixel);
 
+    // Перевірка на підтримуваний формат
     if (bmp.type != 0x4D42 || dib.bits_per_pixel != 24) {
         printf("Unsupported BMP format.\n");
         fclose(file);
@@ -100,18 +110,20 @@ int main() {
 
     int width = dib.width;
     int height = dib.height;
-    int row_padded = (width * 3 + 3) & (~3);
+    int row_padded = (width * 3 + 3) & (~3); // Довжина рядка з врахуванням вирівнювання по 4 байти
 
+    // Виділення пам'яті для пікселів
     Pixel* pixels = malloc(sizeof(Pixel) * width * height);
     Pixel* encrypted = malloc(sizeof(Pixel) * width * height);
-    unsigned char* row = malloc(row_padded);
+    unsigned char* row = malloc(row_padded); // Буфер для зчитування рядка з BMP
 
     if (!pixels || !encrypted || !row) {
         printf("Memory allocation failed.\n");
         return 1;
     }
 
-    fseek(file, bmp.offset, SEEK_SET);
+    fseek(file, bmp.offset, SEEK_SET); // Перехід до піксельних даних
+    // Зчитування пікселів (від нижнього рядка до верхнього)
     for (int y = height - 1; y >= 0; y--) {
         fread(row, 1, row_padded, file);
         for (int x = 0; x < width; x++) {
@@ -123,9 +135,11 @@ int main() {
     }
     fclose(file);
 
+    // Шифрування блоків
     printf("Encrypting blocks...\n");
-    encrypt_blocks(pixels, encrypted, width, height, 1234);
+    encrypt_blocks(pixels, encrypted, width, height, 1234); // 1234 — фіксований seed
 
+    // Запис нового зашифрованого BMP-файлу
     printf("Writing encrypted.bmp...\n");
     FILE* out = fopen("encrypted.bmp", "wb");
     if (!out) {
@@ -133,12 +147,13 @@ int main() {
         return 1;
     }
 
-    dib.image_size = row_padded * height;
-    bmp.size = sizeof(BMPHeader) + sizeof(DIBHeader) + dib.image_size;
+    dib.image_size = row_padded * height; // Оновлення розміру зображення
+    bmp.size = sizeof(BMPHeader) + sizeof(DIBHeader) + dib.image_size; // Загальний розмір файлу
 
-    fwrite(&bmp, sizeof(bmp), 1, out);
+    fwrite(&bmp, sizeof(bmp), 1, out); // Запис заголовків
     fwrite(&dib, sizeof(dib), 1, out);
 
+    // Запис пікселів (також від нижнього до верхнього рядка)
     for (int y = height - 1; y >= 0; y--) {
         for (int x = 0; x < width; x++) {
             int i = y * width + x;
@@ -149,9 +164,10 @@ int main() {
         fwrite(row, 1, row_padded, out);
     }
 
-    fflush(out);
-    fclose(out);
+    fflush(out); // Примусовий запис у файл
+    fclose(out); // Закриття файлу
 
+    // Звільнення пам’яті
     free(pixels);
     free(encrypted);
     free(row);
