@@ -1,0 +1,161 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define BLOCK_WIDTH  4
+#define BLOCK_HEIGHT 3
+
+typedef struct {
+    unsigned char b, g, r;
+} Pixel;
+
+#pragma pack(push, 1)
+typedef struct {
+    unsigned short type;
+    unsigned int size;
+    unsigned short reserved1;
+    unsigned short reserved2;
+    unsigned int offset;
+} BMPHeader;
+
+typedef struct {
+    unsigned int size;
+    int width, height;
+    unsigned short planes;
+    unsigned short bits_per_pixel;
+    unsigned int compression;
+    unsigned int image_size;
+    int x_pixels_per_meter;
+    int y_pixels_per_meter;
+    unsigned int colors_used;
+    unsigned int important_colors;
+} DIBHeader;
+#pragma pack(pop)
+
+void shuffle(int* arr, int n, unsigned int seed) {
+    srand(seed);
+    for (int i = n - 1; i > 0; i--) {
+        int j = rand() % (i + 1);
+        int tmp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = tmp;
+    }
+}
+
+void encrypt_blocks(Pixel* pixels, Pixel* output, int width, int height, unsigned int seed) {
+    int blocks_x = width / BLOCK_WIDTH;
+    int blocks_y = height / BLOCK_HEIGHT;
+    int total_blocks = blocks_x * blocks_y;
+
+    int* permutation = malloc(sizeof(int) * total_blocks);
+    if (!permutation) {
+        printf("Memory allocation for permutation failed.\n");
+        return;
+    }
+
+    for (int i = 0; i < total_blocks; i++) permutation[i] = i;
+    shuffle(permutation, total_blocks, seed);
+
+    for (int i = 0; i < total_blocks; i++) {
+        int src_block = permutation[i];
+        int dst_block = i;
+
+        int src_x = (src_block % blocks_x) * BLOCK_WIDTH;
+        int src_y = (src_block / blocks_x) * BLOCK_HEIGHT;
+        int dst_x = (dst_block % blocks_x) * BLOCK_WIDTH;
+        int dst_y = (dst_block / blocks_x) * BLOCK_HEIGHT;
+
+        for (int y = 0; y < BLOCK_HEIGHT; y++) {
+            for (int x = 0; x < BLOCK_WIDTH; x++) {
+                int sy = height - 1 - (src_y + y);
+                int dy = height - 1 - (dst_y + y);
+                output[dy * width + (dst_x + x)] = pixels[sy * width + (src_x + x)];
+            }
+        }
+    }
+    free(permutation);
+}
+
+int main() {
+    printf("Opening input.bmp...\n");
+    FILE* file = fopen("input.bmp", "rb");
+    if (!file) {
+        perror("Can't open input file");
+        return 1;
+    }
+
+    BMPHeader bmp;
+    DIBHeader dib;
+
+    fread(&bmp, sizeof(bmp), 1, file);
+    fread(&dib, sizeof(dib), 1, file);
+
+    printf("Image: %dx%d, BPP: %d\n", dib.width, dib.height, dib.bits_per_pixel);
+
+    if (bmp.type != 0x4D42 || dib.bits_per_pixel != 24) {
+        printf("Unsupported BMP format.\n");
+        fclose(file);
+        return 1;
+    }
+
+    int width = dib.width;
+    int height = dib.height;
+    int row_padded = (width * 3 + 3) & (~3);
+
+    Pixel* pixels = malloc(sizeof(Pixel) * width * height);
+    Pixel* encrypted = malloc(sizeof(Pixel) * width * height);
+    unsigned char* row = malloc(row_padded);
+
+    if (!pixels || !encrypted || !row) {
+        printf("Memory allocation failed.\n");
+        return 1;
+    }
+
+    fseek(file, bmp.offset, SEEK_SET);
+    for (int y = height - 1; y >= 0; y--) {
+        fread(row, 1, row_padded, file);
+        for (int x = 0; x < width; x++) {
+            int i = y * width + x;
+            pixels[i].b = row[x * 3];
+            pixels[i].g = row[x * 3 + 1];
+            pixels[i].r = row[x * 3 + 2];
+        }
+    }
+    fclose(file);
+
+    printf("Encrypting blocks...\n");
+    encrypt_blocks(pixels, encrypted, width, height, 1234);
+
+    printf("Writing encrypted.bmp...\n");
+    FILE* out = fopen("encrypted.bmp", "wb");
+    if (!out) {
+        perror("Can't create output file");
+        return 1;
+    }
+
+    dib.image_size = row_padded * height;
+    bmp.size = sizeof(BMPHeader) + sizeof(DIBHeader) + dib.image_size;
+
+    fwrite(&bmp, sizeof(bmp), 1, out);
+    fwrite(&dib, sizeof(dib), 1, out);
+
+    for (int y = height - 1; y >= 0; y--) {
+        for (int x = 0; x < width; x++) {
+            int i = y * width + x;
+            row[x * 3] = encrypted[i].b;
+            row[x * 3 + 1] = encrypted[i].g;
+            row[x * 3 + 2] = encrypted[i].r;
+        }
+        fwrite(row, 1, row_padded, out);
+    }
+
+    fflush(out);
+    fclose(out);
+
+    free(pixels);
+    free(encrypted);
+    free(row);
+
+    printf("Encryption done. Check 'encrypted.bmp'.\n");
+    return 0;
+}
